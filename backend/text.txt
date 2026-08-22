@@ -1,0 +1,30 @@
+backend/
+├── package.json
+├── .env.example
+├── server.js
+├── config/db.js
+├── middleware/auth.js
+├── sql/schema.sql
+├── seed.js
+├── controllers/
+│   ├── authController.js
+│   ├── usersController.js
+│   ├── loansController.js
+│   ├── depositsController.js
+│   ├── balancesController.js
+│   ├── ratesController.js
+│   ├── intercompanyController.js
+│   ├── notificationsController.js
+│   ├── auditController.js
+│   └── permissionsController.js
+└── routes/
+    ├── auth.js
+    ├── users.js
+    ├── loans.js
+    ├── deposits.js
+    ├── balances.js
+    ├── rates.js
+    ├── intercompany.js
+    ├── notifications.js
+    ├── audit.js
+    └── permissions.js

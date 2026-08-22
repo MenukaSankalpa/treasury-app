@@ -1,0 +1,36 @@
+frontend/
+├── index.html
+├── package.json
+├── vite.config.js
+├── .gitignore
+└── src/
+    ├── main.jsx
+    ├── index.css
+    ├── App.jsx
+    ├── config.js
+    ├── constants.js
+    ├── utils.js
+    ├── permissions.js
+    ├── mockUsers.js
+    ├── mockData.js
+    ├── context/
+    │   ├── AuthContext.jsx
+    │   └── PermissionsContext.jsx
+    ├── components/
+    │   └── UI.jsx
+    ├── api/
+    │   ├── client.js
+    │   ├── auth.js
+    │   ├── users.js
+    │   └── treasury.js
+    └── pages/
+        ├── Login.jsx
+        ├── Dashboard.jsx
+        ├── LoansPage.jsx
+        ├── DepositsPage.jsx
+        ├── BalancesPage.jsx
+        ├── IntercompanyPage.jsx
+        ├── RatePage.jsx
+        ├── ReportsPage.jsx
+        ├── UsersPage.jsx
+        └── AccessControlPage.jsx

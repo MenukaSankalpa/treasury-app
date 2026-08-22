@@ -1,0 +1,65 @@
+frontend/
+├── package.json
+├── vite.config.js
+├── index.html
+├── .env.local
+├── .env.production
+├── .gitignore
+└── src/
+    ├── main.jsx
+    ├── App.jsx
+    ├── constants.js
+    ├── utils.js
+    ├── components/
+    │   └── UI.jsx
+    ├── api/
+    │   ├── client.js
+    │   └── treasury.js
+    └── pages/
+        ├── Dashboard.jsx
+        ├── LoansPage.jsx
+        ├── DepositsPage.jsx
+        ├── IntercompanyPage.jsx
+        ├── RatePage.jsx
+        └── ReportsPage.jsx
+
+Login & Approvel Floor
+
+frontend/src/
+├── main.jsx                    (updated)
+├── App.jsx                     (updated)
+├── context/
+│   └── AuthContext.jsx         (new)
+├── api/
+│   ├── client.js                (updated — attaches auth token)
+│   ├── auth.js                  (new)
+│   ├── users.js                 (new)
+│   └── treasury.js              (updated — approve/reject step)
+├── components/
+│   └── UI.jsx                   (unchanged from before, still needed)
+└── pages/
+    ├── Login.jsx                (new)
+    ├── UsersPage.jsx             (new — Super Admin only)
+    └── IntercompanyPage.jsx      (updated — real approve/reject buttons)
+
+
+front- > 
+{
+  "name": "treasury-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.12.7"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.0"
+  }
+}
