@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { COMPANIES, BANKS, CURRENCIES, REPAY_FREQ } from "../../constants";
-import { fmtM, fmtFull, fmtPct, wtdRate, genAmort, loanEditHistoryEntry, suggestRepayAmount } from "../../utils";
+import { fmtM, fmtFull, fmtPct, genAmort, loanEditHistoryEntry, suggestRepayAmount } from "../../utils";
 import { GlassCard, KpiGlass, Badge, Table, Modal, Field, FormRow, PageHeader, S } from "../../components/UI";
 import { loansApi } from "../../api/treasury";
 import { usersApi } from "../../api/users";
