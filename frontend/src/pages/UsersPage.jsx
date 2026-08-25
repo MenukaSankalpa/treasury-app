@@ -54,7 +54,8 @@ export default function UsersPage() {
 
   const remove = async (u) => {
     if (USE_MOCK) { alert("User removal requires the real backend."); return; }
-    if (!confirm(`Remove ${u.name}? They will lose access immediately.`)) return;
+    // if (!confirm(`Remove ${u.name}? They will lose access immediately.`)) return;
+    if (!window.confirm(`Remove ${u.name}? They will lose access immediately.`)) return;
     await usersApi.remove(u.id);
     load();
   };
