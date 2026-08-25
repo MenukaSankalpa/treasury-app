@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { COMPANIES, BANKS, LOAN_TYPES, CURRENCIES, REPAY_FREQ } from "../../constants";
-import { fmtM, fmtFull, fmtPct, wtdRate, genAmort, fmt, TODAY, loanEditHistoryEntry, suggestRepayAmount } from "../../utils";
+import { COMPANIES, BANKS, CURRENCIES, REPAY_FREQ } from "../../constants";
+import { fmtM, fmtFull, fmtPct, wtdRate, genAmort, loanEditHistoryEntry, suggestRepayAmount } from "../../utils";
 import { GlassCard, KpiGlass, Badge, Table, Modal, Field, FormRow, PageHeader, S } from "../../components/UI";
 import { loansApi } from "../../api/treasury";
 import { usersApi } from "../../api/users";
@@ -42,7 +42,7 @@ export default function LoansPageTreasury({loans, setLoans}) {
   const { logAction } = useAudit();
   const canApprove = canDoAction(user, "approve_facility");
 
-  const [modal, setModal] = useState(null); // "sens" | loan object
+  const [modal, setModal] = useState(null);
   const [filterCo, setFilterCo] = useState("");
   const [filterIT, setFilterIT] = useState("");
   const [editModal, setEditModal] = useState(null);
@@ -57,7 +57,6 @@ export default function LoansPageTreasury({loans, setLoans}) {
   const totalDebt = activeFiltered.reduce((s,l)=>s+l.outstanding,0);
   const fixedDebt = activeFiltered.filter(l=>l.interestType==="Fixed").reduce((s,l)=>s+l.outstanding,0);
   const varDebt = activeFiltered.filter(l=>l.interestType!=="Fixed").reduce((s,l)=>s+l.outstanding,0);
-  const avg = wtdRate(activeFiltered);
   const pendingCount = filtered.filter(l=>l.status==="Pending Treasury Approval").length;
 
   const sensData = [-2,-1,0,1,2].map(d => {
@@ -71,7 +70,7 @@ export default function LoansPageTreasury({loans, setLoans}) {
 
   const openEdit = (loan) => {
     setEditForm({...loan, facilityAmt:String(loan.facilityAmt), outstanding:String(loan.outstanding), rate:String(loan.rate), spread:String(loan.spread||0), repayAmt:String(loan.repayAmt||0), attachments: loan.attachments||[]});
-    setEditRepayTouched(true); // don't auto-overwrite an existing value on open
+    setEditRepayTouched(true);
     setEditModal(loan);
   };
 
@@ -136,7 +135,6 @@ export default function LoansPageTreasury({loans, setLoans}) {
     }
   };
 
-  // ── Treasury approve/reject — now actually persists to the backend ──
   const decide = async (loan, action, reason="") => {
     setActing(true);
     try {

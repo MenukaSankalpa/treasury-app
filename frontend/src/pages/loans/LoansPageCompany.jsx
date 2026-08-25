@@ -34,14 +34,11 @@ export default function LoansPageCompany({loans, setLoans}) {
   const { notify } = useNotifications();
   const { logAction } = useAudit();
 
-  // Both TeamMember and Accountant can add a facility. Accountant's own
-  // submission skips the review step (they ARE the reviewer); TeamMember's
-  // submission needs Accountant review first.
   const canAdd = canDoAction(user, "add_facility") && (user.role === "TeamMember" || user.role === "Accountant");
   const canAccountantReview = user.role === "Accountant";
   const canCompanyHeadDecide = user.role === "CompanyHead";
 
-  const [modal, setModal] = useState(null); // "form" | loan object | "sens"
+  const [modal, setModal] = useState(null);
   const [filterIT, setFilterIT] = useState("");
   const blank = {company:user.company,type:"",bank:"",bankAccountNo:"",currency:"LKR",facilityAmt:"",outstanding:"",interestType:"Fixed",rate:"",spread:"",awplr:"10.0",facilityDate:"",maturityDate:"",repayFreq:"Monthly",repayAmt:"",security:"",purpose:"",attachments:[]};
   const [form, setForm] = useState(blank);
@@ -58,7 +55,6 @@ export default function LoansPageCompany({loans, setLoans}) {
   const totalDebt = activeFiltered.reduce((s,l)=>s+l.outstanding,0);
   const fixedDebt = activeFiltered.filter(l=>l.interestType==="Fixed").reduce((s,l)=>s+l.outstanding,0);
   const varDebt = activeFiltered.filter(l=>l.interestType!=="Fixed").reduce((s,l)=>s+l.outstanding,0);
-  const avg = wtdRate(activeFiltered);
   const pendingAccountantCount = filtered.filter(l=>l.status==="Pending Accountant Review").length;
   const pendingHeadCount = filtered.filter(l=>l.status==="Pending Company Head").length;
   const pendingTreasuryCount = filtered.filter(l=>l.status==="Pending Treasury Approval").length;
@@ -81,7 +77,6 @@ export default function LoansPageCompany({loans, setLoans}) {
     setForm(next);
   };
 
-  // ── Submit — TeamMember goes to Accountant review; Accountant's own submission skips straight to Company Head ──
   const save = async () => {
     setSaving(true);
     try {
@@ -127,7 +122,6 @@ export default function LoansPageCompany({loans, setLoans}) {
     }
   };
 
-  // ── Accountant reviews TeamMember-submitted requests ──
   const accountantDecide = async (loan, action, reason="") => {
     setActing(true);
     try {
@@ -173,7 +167,6 @@ export default function LoansPageCompany({loans, setLoans}) {
     }
   };
 
-  // ── Company Head approves/rejects ──
   const companyHeadDecide = async (loan, action, reason="") => {
     setActing(true);
     try {
