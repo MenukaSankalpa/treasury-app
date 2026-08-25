@@ -12,6 +12,7 @@ import intercompanyRoutes from "./routes/intercompany.js";
 import notificationsRoutes from "./routes/notifications.js";
 import auditRoutes from "./routes/audit.js";
 import permissionsRoutes from "./routes/permissions.js";
+import uploadRoutes from "./routes/upload.js";
 
 const app = express();
 const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173").split(",").map(s=>s.trim());
@@ -30,6 +31,7 @@ app.use("/api/intercompany", intercompanyRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/audit", auditRoutes);
 app.use("/api/permissions", permissionsRoutes);
+app.use("/api/upload", uploadRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Treasury API running on port ${PORT}`));
