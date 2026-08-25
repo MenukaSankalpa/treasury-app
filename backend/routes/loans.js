@@ -6,7 +6,7 @@ const router = Router();
 router.use(requireAuth);
 
 router.get("/", getLoans);
-router.post("/", requireRole("TeamMember"), createLoan);
+router.post("/", requireRole("TeamMember", "Accountant"), createLoan);
 router.post("/:id/accountant", requireRole("Accountant"), decideAccountant);
 router.post("/:id/company-head", requireRole("CompanyHead"), decideCompanyHead);
 router.post("/:id/decide", requireRole("Treasury"), decideLoan);
