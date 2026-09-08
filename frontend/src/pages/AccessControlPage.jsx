@@ -1,10 +1,7 @@
-import { useState, useEffect } from "react";
-import { usePermissions } from "../context/PermissionsContext";
 import { PAGES, ROLES, ACTIONS } from "../permissions";
-import { GlassCard, PageHeader, Badge, S } from "../components/UI";
-import { usersApi } from "../api/users";
-import { MOCK_USERS } from "../mockUsers";
-import { USE_MOCK } from "../config";
+import { usePermissions } from "../context/PermissionsContext";
+import { GlassCard, PageHeader, S } from "../components/UI";
+import { useState } from "react";
 
 export default function AccessControlPage() {
   const {
@@ -13,133 +10,155 @@ export default function AccessControlPage() {
     resetDefaults,
   } = usePermissions();
 
-  const editablePages = PAGES.filter(p => p.key !== "access" && p.key !== "users");
-  const [allUsers, setAllUsers] = useState([]);
-  const [pickEmail, setPickEmail] = useState({}); // actionKey -> selected email in the dropdown
+  const [emailInputs, setEmailInputs] = useState({});
+  const [resetting, setResetting] = useState(false);
 
-  useEffect(() => {
-    if (USE_MOCK) {
-      setAllUsers(MOCK_USERS.map(({password, ...u}) => u));
-    } else {
-      usersApi.list().then(setAllUsers).catch(() => setAllUsers([]));
-    }
-  }, []);
+  const checkboxCell = (checked, onClick, disabled=false) => (
+    <td style={{textAlign:"center", padding:"8px 6px", borderBottom:"1px solid var(--color-border-secondary)"}}>
+      <input
+        type="checkbox"
+        checked={!!checked}
+        disabled={disabled}
+        onChange={onClick}
+        style={{width:16, height:16, cursor: disabled ? "not-allowed" : "pointer"}}
+      />
+    </td>
+  );
 
-  const grant = (actionKey) => {
-    const email = pickEmail[actionKey];
-    if (!email) return;
-    grantActionEmail(actionKey, email);
-    setPickEmail({...pickEmail, [actionKey]: ""});
-  };
-
-  const selectStyle = {padding:"6px 10px",borderRadius:8,border:"0.5px solid var(--color-border-secondary)",fontSize:13,background:"var(--color-background-primary)",color:"var(--color-text-primary)"};
+  const selectableRoles = ROLES.filter(r => r !== "SuperAdmin");
 
   return (
     <div>
       <PageHeader title="Access Control">
-        <button style={S.btnGhost} onClick={resetDefaults}>Reset to defaults</button>
+        <button
+          style={S.btn("#A32D2D")}
+          disabled={resetting}
+          onClick={async () => {
+            if (!window.confirm("Reset all page and action permissions to their defaults? This cannot be undone.")) return;
+            setResetting(true);
+            try { await resetDefaults(); } finally { setResetting(false); }
+          }}
+        >
+          {resetting ? "Resetting…" : "Reset to defaults"}
+        </button>
       </PageHeader>
 
-      <GlassCard title="Page access — which roles can see each page" style={{marginBottom:16}}>
-        <p style={{fontSize:13,color:"var(--color-text-secondary)",margin:"0 0 18px"}}>
-          SuperAdmin always has full access. "User Management" and "Access Control" are permanently SuperAdmin-only.
-        </p>
+      <GlassCard title="Page visibility — which roles can see each page" style={{marginBottom:20}}>
         <div style={{overflowX:"auto"}}>
-          <table style={{borderCollapse:"collapse",width:"100%",fontSize:13}}>
+          <table style={{width:"100%", borderCollapse:"collapse", fontSize:13}}>
             <thead>
               <tr>
-                <th style={{textAlign:"left",padding:"10px 12px",color:"var(--color-text-secondary)",fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em"}}>Page</th>
-                {ROLES.map(r => (
-                  <th key={r} style={{padding:"10px 12px",textAlign:"center",color:"var(--color-text-secondary)",fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em"}}>{r}</th>
+                <th style={{textAlign:"left", padding:"8px 10px", borderBottom:"2px solid var(--color-border-secondary)"}}>Page</th>
+                <th style={{padding:"8px 6px", borderBottom:"2px solid var(--color-border-secondary)", color:"var(--color-text-secondary)"}}>SuperAdmin</th>
+                {selectableRoles.map(role => (
+                  <th key={role} style={{padding:"8px 6px", borderBottom:"2px solid var(--color-border-secondary)", fontSize:11, textTransform:"uppercase", letterSpacing:"0.03em"}}>
+                    {role}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {editablePages.map(p => (
-                <tr key={p.key} style={{borderTop:"0.5px solid var(--color-border-tertiary)"}}>
-                  <td style={{padding:"10px 12px",fontWeight:500,color:"var(--color-text-primary)"}}>{p.label}</td>
-                  {ROLES.map(r => {
-                    const checked = r === "SuperAdmin" ? true : (pageAccess[p.key]?.includes(r) ?? false);
-                    return (
-                      <td key={r} style={{textAlign:"center",padding:"10px 12px"}}>
-                        <input type="checkbox" checked={checked} disabled={r === "SuperAdmin"}
-                          onChange={() => toggleAccess(p.key, r)}
-                          style={{width:16,height:16,cursor:r==="SuperAdmin"?"default":"pointer"}} />
+              {PAGES.map(({key, label}) => {
+                const roles = pageAccess[key] || [];
+                return (
+                  <tr key={key}>
+                    <td style={{padding:"8px 10px", borderBottom:"1px solid var(--color-border-secondary)", fontWeight:500}}>{label}</td>
+                    {checkboxCell(true, () => {}, true)}
+                    {selectableRoles.map(role => (
+                      <td key={role} style={{textAlign:"center", padding:"8px 6px", borderBottom:"1px solid var(--color-border-secondary)"}}>
+                        <input
+                          type="checkbox"
+                          checked={roles.includes(role)}
+                          onChange={() => toggleAccess(key, role)}
+                          style={{width:16, height:16, cursor:"pointer"}}
+                        />
                       </td>
-                    );
-                  })}
-                </tr>
-              ))}
+                    ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
+        <p style={{fontSize:12, color:"var(--color-text-secondary)", marginTop:10}}>
+          SuperAdmin always has access to every page and cannot be restricted. Uncheck a role to hide that page from users with that role.
+        </p>
       </GlassCard>
 
-      <GlassCard title="Action permissions — who can use each 'create' button">
-        <p style={{fontSize:13,color:"var(--color-text-secondary)",margin:"0 0 18px"}}>
-          Each action is allowed for the checked roles by default. You can also grant it to a specific
-          person by email — useful when one individual needs access their role wouldn't normally have.
-        </p>
-
-        {ACTIONS.map(action => {
-          const rule = actionAccess[action.key] || { roles:[], emails:[] };
-          return (
-            <div key={action.key} style={{borderTop:"0.5px solid var(--color-border-tertiary)", padding:"16px 0"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                <div style={{fontWeight:600,fontSize:14,color:"var(--color-text-primary)"}}>{action.label}</div>
-                <Badge type="gray">{PAGES.find(p=>p.key===action.page)?.label}</Badge>
-              </div>
-
-              <div style={{marginBottom:12}}>
-                <div style={{fontSize:11,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>By role</div>
-                <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
-                  {ROLES.map(r => (
-                    <label key={r} style={{display:"flex",alignItems:"center",gap:6,fontSize:13,color:"var(--color-text-primary)",cursor:r==="SuperAdmin"?"default":"pointer"}}>
-                      <input type="checkbox"
-                        checked={r==="SuperAdmin" ? true : rule.roles.includes(r)}
-                        disabled={r==="SuperAdmin"}
-                        onChange={()=>toggleActionRole(action.key, r)}
-                        style={{width:15,height:15}} />
-                      {r}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div style={{fontSize:11,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Individually granted</div>
-                <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
-                  <select
-                    value={pickEmail[action.key] || ""}
-                    onChange={e=>setPickEmail({...pickEmail, [action.key]: e.target.value})}
-                    style={selectStyle}
-                  >
-                    <option value="">Select a user…</option>
-                    {allUsers.map(u => (
-                      <option key={u.email} value={u.email}>{u.name} — {u.email} ({u.role})</option>
+      <GlassCard title="Action permissions — which roles (or specific people) can perform each action">
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%", borderCollapse:"collapse", fontSize:13}}>
+            <thead>
+              <tr>
+                <th style={{textAlign:"left", padding:"8px 10px", borderBottom:"2px solid var(--color-border-secondary)"}}>Action</th>
+                {selectableRoles.map(role => (
+                  <th key={role} style={{padding:"8px 6px", borderBottom:"2px solid var(--color-border-secondary)", fontSize:11, textTransform:"uppercase", letterSpacing:"0.03em"}}>
+                    {role}
+                  </th>
+                ))}
+                <th style={{textAlign:"left", padding:"8px 10px", borderBottom:"2px solid var(--color-border-secondary)"}}>Specific people (by email)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ACTIONS.map(({key, label}) => {
+                const rule = actionAccess[key] || { roles:[], emails:[] };
+                return (
+                  <tr key={key}>
+                    <td style={{padding:"8px 10px", borderBottom:"1px solid var(--color-border-secondary)", fontWeight:500}}>{label}</td>
+                    {selectableRoles.map(role => (
+                      <td key={role} style={{textAlign:"center", padding:"8px 6px", borderBottom:"1px solid var(--color-border-secondary)"}}>
+                        <input
+                          type="checkbox"
+                          checked={rule.roles?.includes(role) || false}
+                          onChange={() => toggleActionRole(key, role)}
+                          style={{width:16, height:16, cursor:"pointer"}}
+                        />
+                      </td>
                     ))}
-                  </select>
-                  <button style={S.btn("#185FA5")} onClick={()=>grant(action.key)}>Grant access</button>
-                </div>
-                {rule.emails.length === 0 ? (
-                  <div style={{fontSize:12,color:"var(--color-text-secondary)"}}>No individual grants.</div>
-                ) : (
-                  <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-                    {rule.emails.map(email => {
-                      const u = allUsers.find(x=>x.email.toLowerCase()===email.toLowerCase());
-                      return (
-                        <div key={email} style={{display:"flex",alignItems:"center",gap:6,background:"var(--color-background-info)",borderRadius:20,padding:"4px 6px 4px 12px",fontSize:12,color:"var(--color-text-info)"}}>
-                          {u ? `${u.name} (${email})` : email}
-                          <button onClick={()=>revokeActionEmail(action.key, email)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--color-text-info)",fontSize:14,padding:"0 4px",lineHeight:1}}>✕</button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+                    <td style={{padding:"8px 10px", borderBottom:"1px solid var(--color-border-secondary)"}}>
+                      <div style={{display:"flex", flexWrap:"wrap", gap:6, marginBottom:6}}>
+                        {(rule.emails || []).map(email => (
+                          <span key={email} style={{display:"flex", alignItems:"center", gap:4, background:"var(--color-background-secondary)", borderRadius:6, padding:"2px 8px", fontSize:12}}>
+                            {email}
+                            <button
+                              onClick={() => revokeActionEmail(key, email)}
+                              style={{background:"none", border:"none", cursor:"pointer", color:"var(--color-text-danger)", fontSize:12, padding:0}}
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <div style={{display:"flex", gap:6}}>
+                        <input
+                          type="email"
+                          placeholder="name@company.com"
+                          value={emailInputs[key] || ""}
+                          onChange={e => setEmailInputs({...emailInputs, [key]: e.target.value})}
+                          style={{flex:1, minWidth:160, padding:"5px 8px", borderRadius:6, border:"0.5px solid var(--color-border-secondary)", fontSize:12}}
+                        />
+                        <button
+                          style={{...S.btnGhost, padding:"4px 10px", fontSize:12}}
+                          onClick={() => {
+                            const email = (emailInputs[key] || "").trim();
+                            if (!email) return;
+                            grantActionEmail(key, email);
+                            setEmailInputs({...emailInputs, [key]: ""});
+                          }}
+                        >
+                          + Add
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p style={{fontSize:12, color:"var(--color-text-secondary)", marginTop:10}}>
+          SuperAdmin can always perform every action. A person's email grants them access to that specific action regardless of their role.
+        </p>
       </GlassCard>
     </div>
   );
