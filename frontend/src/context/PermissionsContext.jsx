@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect } from "react";
 import { DEFAULT_PAGE_ACCESS, DEFAULT_ACTION_ACCESS } from "../permissions";
 import { permissionsApi } from "../api/treasury";
 import { USE_MOCK } from "../config";
+import { useAuth } from "./AuthContext";
 
 const PermissionsContext = createContext(null);
 
@@ -24,16 +25,20 @@ function mergeActionAccess(saved) {
 }
 
 export function PermissionsProvider({ children }) {
+  const { user, loading: authLoading } = useAuth();
   const [pageAccess, setPageAccess] = useState(DEFAULT_PAGE_ACCESS);
   const [actionAccess, setActionAccess] = useState(DEFAULT_ACTION_ACCESS);
   const [loaded, setLoaded] = useState(false);
 
-  // Load real permissions from the backend on every app start — this is
-  // what makes Access Control changes visible to EVERY user's browser,
-  // not just the one that made the change.
+  // Wait for AuthContext to finish restoring the session before attempting
+  // to load permissions — this guarantees the token exists (if the user is
+  // logged in) before we ever call the permissions API, fixing the
+  // "Missing token" / "Failed to fetch" race condition.
   useEffect(() => {
+    if (authLoading) return;
+
     async function load() {
-      if (USE_MOCK) {
+      if (USE_MOCK || !user) {
         setPageAccess(DEFAULT_PAGE_ACCESS);
         setActionAccess(DEFAULT_ACTION_ACCESS);
         setLoaded(true);
@@ -52,7 +57,7 @@ export function PermissionsProvider({ children }) {
       }
     }
     load();
-  }, []);
+  }, [authLoading, user]);
 
   const canAccess = (role, pageKey) => {
     if (role === "SuperAdmin") return true;
@@ -62,18 +67,16 @@ export function PermissionsProvider({ children }) {
   const firstAllowedPage = (role) =>
     Object.keys(pageAccess).find(key => canAccess(role, key)) || "dashboard";
 
-  const canDoAction = (user, actionKey) => {
-    if (!user) return false;
-    if (user.role === "SuperAdmin") return true;
+  const canDoAction = (u, actionKey) => {
+    if (!u) return false;
+    if (u.role === "SuperAdmin") return true;
     const rule = actionAccess[actionKey];
     if (!rule) return false;
-    if (rule.roles?.includes(user.role)) return true;
-    if (rule.emails?.map(e=>e.toLowerCase()).includes(user.email?.toLowerCase())) return true;
+    if (rule.roles?.includes(u.role)) return true;
+    if (rule.emails?.map(e=>e.toLowerCase()).includes(u.email?.toLowerCase())) return true;
     return false;
   };
 
-  // Every toggle now calls the backend AND updates local state optimistically,
-  // so the change is saved for everyone immediately, not just this browser.
   const toggleAccess = async (pageKey, role) => {
     if (role === "SuperAdmin") return;
     const current = pageAccess[pageKey] || [];
@@ -84,7 +87,7 @@ export function PermissionsProvider({ children }) {
       if (!USE_MOCK) await permissionsApi.togglePageRole(pageKey, role);
     } catch (err) {
       console.error("Failed to save page access change:", err);
-      setPageAccess(prev => ({ ...prev, [pageKey]: current })); // revert on failure
+      setPageAccess(prev => ({ ...prev, [pageKey]: current }));
       alert("Failed to save this permission change. Please try again.");
     }
   };
@@ -99,7 +102,7 @@ export function PermissionsProvider({ children }) {
       if (!USE_MOCK) await permissionsApi.toggleActionRole(actionKey, role);
     } catch (err) {
       console.error("Failed to save action access change:", err);
-      setActionAccess(prev => ({ ...prev, [actionKey]: rule })); // revert
+      setActionAccess(prev => ({ ...prev, [actionKey]: rule }));
       alert("Failed to save this permission change. Please try again.");
     }
   };

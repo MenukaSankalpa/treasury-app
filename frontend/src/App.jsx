@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { PermissionsProvider, usePermissions } from "./context/PermissionsContext";
+import { NotificationsProvider } from "./context/NotificationsContext";
+import { AuditProvider } from "./context/AuditContext";
 import { USE_MOCK } from "./config";
-import { PAGE_ACCESS, canAccess, firstAllowedPage } from "./permissions";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import LoansPage from "./pages/LoansPage";
@@ -10,42 +12,47 @@ import BalancesPage from "./pages/BalancesPage";
 import IntercompanyPage from "./pages/IntercompanyPage";
 import RatePage from "./pages/RatePage";
 import ReportsPage from "./pages/ReportsPage";
+import NotificationsPage from "./pages/NotificationsPage";
+import AuditLogPage from "./pages/AuditLogPage";
+import AccessControlPage from "./pages/AccessControlPage";
 import UsersPage from "./pages/UsersPage";
 import { loansApi, depositsApi, intercompanyApi, ratesApi, balancesApi } from "./api/treasury";
-import { INIT_LOANS, INIT_DEPOSITS, INIT_IC, INIT_APPROVALS, INIT_RATES, INIT_BALANCES } from "./mockData";
 
 const NAV_META = {
-  dashboard:    {icon:"ti-dashboard",        label:"Dashboard"},
-  loans:        {icon:"ti-credit-card",      label:"Loans & borrowings"},
-  deposits:     {icon:"ti-building-bank",    label:"Deposits"},
-  balances:     {icon:"ti-wallet",           label:"Bank Balances"},
-  intercompany: {icon:"ti-arrows-exchange",  label:"Intercompany"},
-  rates:        {icon:"ti-chart-line",       label:"Rate registry"},
-  reports:      {icon:"ti-report-analytics", label:"Reports"},
-  users:        {icon:"ti-users",            label:"User Management"},
+  dashboard:     {icon:"ti-dashboard",        label:"Dashboard"},
+  loans:         {icon:"ti-credit-card",      label:"Loans & borrowings"},
+  deposits:      {icon:"ti-building-bank",    label:"Deposits"},
+  balances:      {icon:"ti-wallet",           label:"Bank Balances"},
+  intercompany:  {icon:"ti-arrows-exchange",  label:"Intercompany"},
+  rates:         {icon:"ti-chart-line",       label:"Rate registry"},
+  reports:       {icon:"ti-report-analytics", label:"Reports"},
+  notifications: {icon:"ti-bell",             label:"Notifications"},
+  audit:         {icon:"ti-history",          label:"Audit Log"},
+  users:         {icon:"ti-users",            label:"User Management"},
+  access:        {icon:"ti-shield-lock",      label:"Access Control"},
 };
 
 function MainApp() {
   const { user, logout } = useAuth();
+  const { canAccess, firstAllowedPage } = usePermissions();
   const [page, setPage] = useState(() => firstAllowedPage(user.role));
-  const [loans, setLoans] = useState(USE_MOCK ? INIT_LOANS : []);
-  const [deposits, setDeposits] = useState(USE_MOCK ? INIT_DEPOSITS : []);
-  const [balances, setBalances] = useState(USE_MOCK ? INIT_BALANCES : []);
-  const [icLoans, setIcLoans] = useState(USE_MOCK ? INIT_IC : []);
-  const [approvals, setApprovals] = useState(USE_MOCK ? INIT_APPROVALS : []);
-  const [rates, setRates] = useState(USE_MOCK ? INIT_RATES : []);
+  const [loans, setLoans] = useState([]);
+  const [deposits, setDeposits] = useState([]);
+  const [balances, setBalances] = useState([]);
+  const [icLoans, setIcLoans] = useState([]);
+  const [rates, setRates] = useState([]);
   const [loading, setLoading] = useState(!USE_MOCK);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (USE_MOCK) return;
+    if (USE_MOCK) { setLoading(false); return; }
     async function loadAll() {
       try {
-        const [l, d, b, ic, appr, r] = await Promise.all([
+        const [l, d, b, ic, r] = await Promise.all([
           loansApi.list(), depositsApi.list(), balancesApi.list(),
-          intercompanyApi.listLoans(), intercompanyApi.listApprovals(), ratesApi.list(),
+          intercompanyApi.listLoans(), ratesApi.list(),
         ]);
-        setLoans(l); setDeposits(d); setBalances(b); setIcLoans(ic); setApprovals(appr); setRates(r);
+        setLoans(l); setDeposits(d); setBalances(b); setIcLoans(ic); setRates(r);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -62,14 +69,17 @@ function MainApp() {
   if (error) return <div style={{padding:40,color:"#A32D2D"}}>Failed to load data: {error}</div>;
 
   const PAGES = {
-    dashboard: <Dashboard loans={loans} deposits={deposits} icLoans={icLoans} rates={rates} />,
+    dashboard: <Dashboard loans={loans} deposits={deposits} icLoans={icLoans} rates={rates} balances={balances} />,
     loans: <LoansPage loans={loans} setLoans={setLoans} />,
     deposits: <DepositsPage deposits={deposits} setDeposits={setDeposits} />,
     balances: <BalancesPage balances={balances} setBalances={setBalances} />,
-    intercompany: <IntercompanyPage icLoans={icLoans} setIcLoans={setIcLoans} approvals={approvals} setApprovals={setApprovals} />,
+    intercompany: <IntercompanyPage icLoans={icLoans} setIcLoans={setIcLoans} />,
     rates: <RatePage rates={rates} setRates={setRates} />,
     reports: <ReportsPage loans={loans} deposits={deposits} rates={rates} icLoans={icLoans} balances={balances} />,
+    notifications: <NotificationsPage />,
+    audit: <AuditLogPage />,
     users: <UsersPage />,
+    access: <AccessControlPage />,
   };
 
   return (
@@ -78,7 +88,7 @@ function MainApp() {
         <div style={{padding:"20px 18px 16px"}}>
           <div style={{color:"#5DCAA5",fontSize:10,fontWeight:500,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:3}}>CHL Group</div>
           <div style={{color:"#fff",fontSize:15,fontWeight:500}}>Treasury Module</div>
-          <div style={{color:"#475569",fontSize:11,marginTop:2}}>{USE_MOCK ? "Mock data mode" : "Acumatica integration ready"}</div>
+          <div style={{color:"#475569",fontSize:11,marginTop:2}}>{USE_MOCK ? "Mock data mode" : "Live"}</div>
         </div>
         <nav style={{padding:"0 10px",flex:1,overflowY:"auto"}}>
           {nav.map(key => {
@@ -133,7 +143,13 @@ function Root() {
 export default function App() {
   return (
     <AuthProvider>
-      <Root />
+      <PermissionsProvider>
+        <NotificationsProvider>
+          <AuditProvider>
+            <Root />
+          </AuditProvider>
+        </NotificationsProvider>
+      </PermissionsProvider>
     </AuthProvider>
   );
 }
