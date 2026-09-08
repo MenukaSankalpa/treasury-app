@@ -1,67 +1,58 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { DEFAULT_PAGE_ACCESS, DEFAULT_ACTION_ACCESS } from "../permissions";
+import { permissionsApi } from "../api/treasury";
+import { USE_MOCK } from "../config";
 
-const PAGE_KEY = "treasury_permissions";
-const ACTION_KEY = "treasury_action_permissions";
 const PermissionsContext = createContext(null);
 
-// Merges a saved page-access object with the current code defaults by
-// UNIONING role arrays per page, rather than one replacing the other.
-// This means any role added to DEFAULT_PAGE_ACCESS in code is always
-// respected immediately, even for users with an older cached copy —
-// no more manual localStorage.removeItem() needed after a permissions
-// change. A role explicitly REMOVED via Access Control (SuperAdmin
-// toggling it off) stays removed, since that's a deliberate saved
-// state, not a stale gap — see toggleAccess/toggleActionRole below,
-// which write the FULL resulting array back to localStorage, so future
-// reads see the deliberate removal as the "saved" value to merge from.
 function mergePageAccess(saved) {
-  const merged = {};
-  const allKeys = new Set([...Object.keys(DEFAULT_PAGE_ACCESS), ...Object.keys(saved || {})]);
-  for (const key of allKeys) {
-    const defaultRoles = DEFAULT_PAGE_ACCESS[key] || [];
-    const savedRoles = saved?.[key];
-    merged[key] = savedRoles
-      ? [...new Set([...defaultRoles, ...savedRoles])]
-      : defaultRoles;
+  if (!saved) return DEFAULT_PAGE_ACCESS;
+  const merged = { ...saved };
+  for (const key of Object.keys(DEFAULT_PAGE_ACCESS)) {
+    if (!(key in merged)) merged[key] = DEFAULT_PAGE_ACCESS[key];
   }
   return merged;
 }
 
 function mergeActionAccess(saved) {
-  const merged = {};
-  const allKeys = new Set([...Object.keys(DEFAULT_ACTION_ACCESS), ...Object.keys(saved || {})]);
-  for (const key of allKeys) {
-    const defaultRule = DEFAULT_ACTION_ACCESS[key] || { roles: [], emails: [] };
-    const savedRule = saved?.[key];
-    merged[key] = savedRule
-      ? { roles: [...new Set([...defaultRule.roles, ...(savedRule.roles || [])])], emails: savedRule.emails || [] }
-      : defaultRule;
+  if (!saved) return DEFAULT_ACTION_ACCESS;
+  const merged = { ...saved };
+  for (const key of Object.keys(DEFAULT_ACTION_ACCESS)) {
+    if (!(key in merged)) merged[key] = DEFAULT_ACTION_ACCESS[key];
   }
   return merged;
 }
 
 export function PermissionsProvider({ children }) {
-  const [pageAccess, setPageAccess] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(PAGE_KEY));
-      return mergePageAccess(saved);
-    } catch {
-      return DEFAULT_PAGE_ACCESS;
-    }
-  });
+  const [pageAccess, setPageAccess] = useState(DEFAULT_PAGE_ACCESS);
+  const [actionAccess, setActionAccess] = useState(DEFAULT_ACTION_ACCESS);
+  const [loaded, setLoaded] = useState(false);
 
-  const [actionAccess, setActionAccess] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(ACTION_KEY));
-      return mergeActionAccess(saved);
-    } catch {
-      return DEFAULT_ACTION_ACCESS;
+  // Load real permissions from the backend on every app start — this is
+  // what makes Access Control changes visible to EVERY user's browser,
+  // not just the one that made the change.
+  useEffect(() => {
+    async function load() {
+      if (USE_MOCK) {
+        setPageAccess(DEFAULT_PAGE_ACCESS);
+        setActionAccess(DEFAULT_ACTION_ACCESS);
+        setLoaded(true);
+        return;
+      }
+      try {
+        const data = await permissionsApi.get();
+        setPageAccess(mergePageAccess(data.pageAccess));
+        setActionAccess(mergeActionAccess(data.actionAccess));
+      } catch (err) {
+        console.error("Failed to load permissions from server, using defaults:", err);
+        setPageAccess(DEFAULT_PAGE_ACCESS);
+        setActionAccess(DEFAULT_ACTION_ACCESS);
+      } finally {
+        setLoaded(true);
+      }
     }
-  });
-
-  useEffect(() => { localStorage.setItem(PAGE_KEY, JSON.stringify(pageAccess)); }, [pageAccess]);
-  useEffect(() => { localStorage.setItem(ACTION_KEY, JSON.stringify(actionAccess)); }, [actionAccess]);
+    load();
+  }, []);
 
   const canAccess = (role, pageKey) => {
     if (role === "SuperAdmin") return true;
@@ -81,44 +72,80 @@ export function PermissionsProvider({ children }) {
     return false;
   };
 
-  const toggleAccess = (pageKey, role) => {
+  // Every toggle now calls the backend AND updates local state optimistically,
+  // so the change is saved for everyone immediately, not just this browser.
+  const toggleAccess = async (pageKey, role) => {
     if (role === "SuperAdmin") return;
-    setPageAccess(prev => {
-      const current = prev[pageKey] || [];
-      const has = current.includes(role);
-      return { ...prev, [pageKey]: has ? current.filter(r => r !== role) : [...current, role] };
-    });
+    const current = pageAccess[pageKey] || [];
+    const has = current.includes(role);
+    const updated = has ? current.filter(r => r !== role) : [...current, role];
+    setPageAccess(prev => ({ ...prev, [pageKey]: updated }));
+    try {
+      if (!USE_MOCK) await permissionsApi.togglePageRole(pageKey, role);
+    } catch (err) {
+      console.error("Failed to save page access change:", err);
+      setPageAccess(prev => ({ ...prev, [pageKey]: current })); // revert on failure
+      alert("Failed to save this permission change. Please try again.");
+    }
   };
 
-  const toggleActionRole = (actionKey, role) => {
+  const toggleActionRole = async (actionKey, role) => {
     if (role === "SuperAdmin") return;
-    setActionAccess(prev => {
-      const rule = prev[actionKey] || { roles:[], emails:[] };
-      const has = rule.roles.includes(role);
-      return { ...prev, [actionKey]: { ...rule, roles: has ? rule.roles.filter(r=>r!==role) : [...rule.roles, role] } };
-    });
+    const rule = actionAccess[actionKey] || { roles: [], emails: [] };
+    const has = rule.roles.includes(role);
+    const updatedRoles = has ? rule.roles.filter(r => r !== role) : [...rule.roles, role];
+    setActionAccess(prev => ({ ...prev, [actionKey]: { ...rule, roles: updatedRoles } }));
+    try {
+      if (!USE_MOCK) await permissionsApi.toggleActionRole(actionKey, role);
+    } catch (err) {
+      console.error("Failed to save action access change:", err);
+      setActionAccess(prev => ({ ...prev, [actionKey]: rule })); // revert
+      alert("Failed to save this permission change. Please try again.");
+    }
   };
 
-  const grantActionEmail = (actionKey, email) => {
+  const grantActionEmail = async (actionKey, email) => {
     if (!email) return;
-    setActionAccess(prev => {
-      const rule = prev[actionKey] || { roles:[], emails:[] };
-      if (rule.emails.map(e=>e.toLowerCase()).includes(email.toLowerCase())) return prev;
-      return { ...prev, [actionKey]: { ...rule, emails:[...rule.emails, email] } };
-    });
+    const rule = actionAccess[actionKey] || { roles: [], emails: [] };
+    if (rule.emails.map(e=>e.toLowerCase()).includes(email.toLowerCase())) return;
+    const updated = { ...rule, emails: [...rule.emails, email] };
+    setActionAccess(prev => ({ ...prev, [actionKey]: updated }));
+    try {
+      if (!USE_MOCK) await permissionsApi.grantActionEmail(actionKey, email);
+    } catch (err) {
+      console.error("Failed to grant email access:", err);
+      setActionAccess(prev => ({ ...prev, [actionKey]: rule }));
+      alert("Failed to save this permission change. Please try again.");
+    }
   };
 
-  const revokeActionEmail = (actionKey, email) => {
-    setActionAccess(prev => {
-      const rule = prev[actionKey] || { roles:[], emails:[] };
-      return { ...prev, [actionKey]: { ...rule, emails: rule.emails.filter(e=>e.toLowerCase()!==email.toLowerCase()) } };
-    });
+  const revokeActionEmail = async (actionKey, email) => {
+    const rule = actionAccess[actionKey] || { roles: [], emails: [] };
+    const updated = { ...rule, emails: rule.emails.filter(e=>e.toLowerCase()!==email.toLowerCase()) };
+    setActionAccess(prev => ({ ...prev, [actionKey]: updated }));
+    try {
+      if (!USE_MOCK) await permissionsApi.revokeActionEmail(actionKey, email);
+    } catch (err) {
+      console.error("Failed to revoke email access:", err);
+      setActionAccess(prev => ({ ...prev, [actionKey]: rule }));
+      alert("Failed to save this permission change. Please try again.");
+    }
   };
 
-  const resetDefaults = () => {
+  const resetDefaults = async () => {
     setPageAccess(DEFAULT_PAGE_ACCESS);
     setActionAccess(DEFAULT_ACTION_ACCESS);
+    try {
+      if (!USE_MOCK) await permissionsApi.reset();
+    } catch (err) {
+      console.error("Failed to reset permissions on server:", err);
+      alert("Reset locally, but failed to save to server. Please try again.");
+    }
   };
+
+  if (!loaded) {
+    return <div style={{padding:40,textAlign:"center",color:"var(--color-text-secondary)"}}>Loading…</div>;
+  }
 
   return (
     <PermissionsContext.Provider value={{
