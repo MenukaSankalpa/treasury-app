@@ -1,10 +1,5 @@
-console.log("PERMISSIONS_CONTROLLER_VERSION_2026_FINAL");
-
 import { pool } from "../config/db.js";
 
-// Handles NULL, empty string, already-parsed objects/arrays (mysql2 auto-parses
-// native JSON columns), comma-separated legacy strings, and malformed JSON.
-// This NEVER throws — every possible bad input falls through to the fallback.
 function safeParse(val, fallback) {
   if (val === null || val === undefined || val === "") return fallback;
   if (Array.isArray(val) || (typeof val === "object")) return val;
