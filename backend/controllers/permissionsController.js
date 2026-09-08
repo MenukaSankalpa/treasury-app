@@ -1,3 +1,5 @@
+console.log("PERMISSIONS_CONTROLLER_VERSION_2026_FINAL");
+
 import { pool } from "../config/db.js";
 
 // Handles NULL, empty string, already-parsed objects/arrays (mysql2 auto-parses
@@ -10,9 +12,6 @@ function safeParse(val, fallback) {
     try {
       return JSON.parse(val);
     } catch {
-      // Legacy data stored as a plain comma-separated string
-      // (e.g. "Accountant,CompanyHead,Treasury,GCFO") instead of JSON.
-      // Convert it defensively instead of crashing.
       return val.split(",").map(s => s.trim()).filter(Boolean);
     }
   }
